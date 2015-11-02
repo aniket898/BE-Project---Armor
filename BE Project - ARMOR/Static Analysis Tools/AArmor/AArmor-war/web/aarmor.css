@@ -1,0 +1,92 @@
+
+body, div, h1, h2, h3, h4, h5, h6, p, ul, ol, li, dl, dt, dd, img, form, fieldset, input, blockquote {
+  margin: 0; padding: 0; border: 0;
+}
+
+body {
+  font-family: Helvetica, Arial, Sans-Serif; line-height: 24px;
+  background: #eee url(images/body-bg.jpg) center top no-repeat;
+  margin-left:15%;
+  margin-right:15%;
+  margin-top:5%;
+  margin-bottom:5%;
+  
+  
+}
+
+#container {
+  width: 100%; margin: 0; padding: 0 0 0 0;
+}
+
+#header {
+  background: url(images/header-bg.png) right bottom no-repeat; overflow: hidden;
+  padding: 0 0 5px 0;
+}
+
+  #header h1 {
+    float: left;
+  }
+  
+  #header ul#categories {
+    float: left; list-style: none; margin: 2% 0 0 0;
+  }
+    #header ul#categories li {
+      float: left; margin: 0 0 0 40px;
+    }
+      #header ul#categories li a {
+        display: block;
+        font-size: 15px;  text-transform: uppercase; color: #000000;
+        text-shadow: 0 2px 0px #fff; text-decoration: none;
+      }
+        #header ul#categories li a:hover {
+          color: #006ab1;
+        }
+
+        #content {
+  background: url(images/content-bg.png) right top repeat-y; overflow: hidden;
+}
+
+  #footer {
+  background: url(images/footer-bg.png) center top no-repeat; overflow: hidden;
+  min-height: 139px;
+}
+
+  #footer ul#credits {
+    overflow: hidden; list-style: none; float: left; margin: 25px 0 0 20px;
+  }
+    #footer ul#credits li {
+      float: left; margin: 0 10px 0 0;
+    }
+      #footer ul#credits li a {
+        display: block; height: 21px; background: url(images/credits.png); text-indent: -9999px;
+      }
+        #footer ul#credits li a.wordpress { width: 21px; }
+        #footer ul#credits li a.spoongraphics { width: 26px; background-position: 26px 0; }
+        
+  #footer p#back-top {
+    float: right; margin: 25px 20px 0 0;
+  }
+    #footer p#back-top a {
+      font-size: 12px; text-transform: uppercase; text-decoration: none;
+      color: #a42988; text-shadow: 0 2px 0px #fff;
+    }
+      #footer p#back-top a:hover {
+        color: #006ab1;
+      }
+      
+#sign_in
+{
+  float:right;
+  margin-top:1%;
+  width:200px;
+  display:inline;
+}
+#image_frame {
+  width: 100%;
+  height: 400px;
+  margin-top:3%;
+  margin-bottom:3%;
+  
+  border: 1px solid #ccc;
+  background-color: #fff;
+}

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.beproj1"
+    android:versionCode="1"
+    android:versionName="1.0" >
+
+
+    <uses-sdk
+        android:minSdkVersion="8"
+        android:targetSdkVersion="18" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    
+    
+    
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme" >
+        <activity
+            android:name="com.example.beproj1.MainActivity"
+            android:label="@string/app_name"
+            android:noHistory="true"
+             >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name="com.example.beproj1.Category" android:noHistory="true"></activity>
+         <activity android:name="com.example.beproj1.OptionsHandler"
+              android:noHistory="true">
+              <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+     <category android:name="android.intent.category.DEFAULT" />
+     </intent-filter>
+         </activity>
+    
+    <service
+            android:name="com.example.beproj1.Service_intent"
+            android:enabled="true"
+            android:exported="true" >
+        </service>
+        
+         <service
+            android:name="com.example.beproj1.QueryServer"
+            android:enabled="true"
+            android:exported="true" >
+        </service>
+        <receiver
+            android:name="com.example.beproj1.bootreceiver"
+            android:enabled="true"
+            android:exported="true" >
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                
+				
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="com.example.beproj1.PackageReceiver"
+            android:enabled="true"
+            android:exported="true" >
+            <intent-filter android:priority="100">
+                <action android:name="android.intent.action.PACKAGE_ADDED" />
+				<action android:name="android.intent.action.PACKAGE_REPLACED" />
+                <data android:scheme="package"/>
+            </intent-filter>
+        </receiver>  
+        
+         <receiver
+            android:name="com.example.beproj1.RemovedPackageRec"
+            android:enabled="true"
+            android:exported="true" >
+            <intent-filter android:priority="100">
+                <action android:name="android.intent.action.PACKAGE_REMOVED" />
+                <data android:scheme="package"/>
+            </intent-filter>
+        </receiver>  
+        
+        
+        
+    </application>
+
+</manifest>
+    

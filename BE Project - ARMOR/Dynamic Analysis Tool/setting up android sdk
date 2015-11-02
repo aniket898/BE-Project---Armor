@@ -1,0 +1,5 @@
+take the setup from beproject
+open the mailed link and install oracle jdk from there
+sudo apt-get install ia32-libs
+
+[Errno 13] Permission denied: '/usr/local/lib/python2.7/dist-packages/test-easy-install-13295.pth'

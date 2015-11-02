@@ -1,0 +1,664 @@
+#include <linux/kernel.h>       
+#include <linux/module.h>       
+#include <linux/moduleparam.h>  
+#include <linux/unistd.h>       
+#include <linux/sched.h>
+#include <linux/sys.h>
+#include <linux/syscalls.h>
+#include <asm/uaccess.h>
+#include <asm/stat.h>
+#include <linux/errno.h>
+#include <linux/fcntl.h>
+#include <linux/netlink.h>
+#include <linux/init.h>
+#include <linux/moduleparam.h>
+#include <linux/udp.h>
+#include <linux/mm.h>
+#include <linux/kthread.h>
+#include <linux/delay.h>
+#include <linux/rcupdate.h>
+#include <linux/fdtable.h>
+#include <linux/fs.h> 
+#include <linux/fs_struct.h>
+#include <linux/dcache.h>
+#include <linux/slab.h>
+#include <linux/bounds.h>
+#include <asm/segment.h>
+#include <linux/buffer_head.h>
+#include <linux/proc_fs.h>
+#include <net/sock.h>
+#include <net/net_namespace.h>
+# define NETLINK_NITRO 17
+
+
+MODULE_LICENSE("Dual BSD/GPL");
+
+static struct sock *nl_sk = NULL;
+struct task_struct *thread1;
+int c_uid=-1;
+int sys_cnt=32;
+int counter[100];
+char c_data[2000];
+
+
+void reset()
+{
+	int i = 0;
+	c_uid=-1;
+	char cnt_str[5];
+	sprintf(cnt_str,"%d",counter[0]);
+	strcat(c_data,cnt_str);
+	counter[0]=0;
+	for(i=1;i<32;i++)
+	{
+		sprintf(cnt_str,"%d",counter[i]);
+		strcat(c_data,",");		
+		strcat(c_data,cnt_str);
+		counter[i]=0;
+	}
+}
+int  timer_func(void *data)
+{   
+	int step=2;
+	strcpy(c_data,"");
+	c_uid=(int *)data;
+        printk("Starting Timer for  2 Sec for app %d\n",c_uid);
+        schedule();
+	msleep(2000);
+	c_uid=-1;
+	reset();
+	printk("\nlast str:%s",c_data);
+	printk("Timer Finished \n");
+    
+    return(1);
+}
+
+static void nl_data_ready (struct sk_buff *skb)
+{
+int pid;
+ struct sk_buff *skb_out;
+struct nlmsghdr *nlh = NULL;
+int msg_size;
+//char *msg="Hello from kernel";
+int res;
+char str_msg[10];
+
+if(skb == NULL) {
+printk("skb is NULL \n");
+return ;
+}
+nlh = (struct nlmsghdr *)skb->data;
+memcpy(str_msg,NLMSG_DATA(nlh),sizeof(str_msg));
+strict_strtoul(str_msg,10,&c_uid);
+printk(KERN_INFO "\n%s: received netlink message payload: %d\n", __FUNCTION__, c_uid);
+
+/*Starting Thread with UID 
+	thread1 = kthread_run(timer_func,(void *)c_uid,"thread_func_1");
+	kthread_should_stop();
+	printk("Timer Stared\n");
+*/
+strcpy(c_data,"");
+ printk("Starting Timer for  2 Sec for app %d\n",c_uid);
+        schedule();
+	msleep(2000);
+	c_uid=-1;
+	reset();
+	//printk("\nlast str:%s",c_data);
+	printk("Timer Finished \n");
+ msg_size=strlen(c_data);   
+pid = nlh->nlmsg_pid; /*pid of sending process */
+printk("\nSending payload: %s\n", c_data);
+skb_out = nlmsg_new(msg_size,0);
+
+if(!skb_out)
+{
+    printk(KERN_ERR "Failed to allocate new skb\n");
+    return;
+} 
+    nlh=nlmsg_put(skb_out,0,0,NLMSG_DONE,msg_size,0); 
+    	
+    NETLINK_CB(skb_out).dst_group = 0; /* not in mcast group */
+	
+    strncpy(nlmsg_data(nlh),c_data,msg_size);
+    
+    res=nlmsg_unicast(nl_sk,skb_out,pid);
+    
+    if(res<0)
+        printk(KERN_INFO "Error while sending bak to user\n");
+//printk("Data received was:%d",uid);
+}
+
+static void netlink_test()
+{
+
+nl_sk = netlink_kernel_create(&init_net,NETLINK_NITRO,0, nl_data_ready,NULL, THIS_MODULE);
+
+}
+
+void __user *sample;
+void **sys_call_table;
+
+/* getuid() prototype */
+asmlinkage int (*getuid_call)();
+
+/* Back up pointer towards orginal sys_read() method */
+asmlinkage long (*original_call_restart_syscall) (); 
+asmlinkage long (*original_call_read) (unsigned int,char *,size_t); 
+asmlinkage long (*original_call_write) (unsigned int,char *,size_t); 
+asmlinkage long (*original_call_exit) (int); 
+asmlinkage long (*original_call_open) (const char *, int , int);
+asmlinkage long (*original_call_close) (unsigned int);
+asmlinkage long (*original_call_waitpid) (pid_t,unsigned int * ,int );
+asmlinkage long (*original_call_creat) (const char * , int );
+asmlinkage long (*original_call_link) (const char * , const char *);
+asmlinkage long (*original_call_unlink) (const char *);
+asmlinkage long (*original_call_execve) (struct pt_regs );
+asmlinkage long (*original_call_chdir) (const char *);
+asmlinkage long (*original_call_mknod) (const char *, int, dev_t);
+asmlinkage long (*original_call_chmod) (const char *, mode_t);
+asmlinkage long (*original_call_kill) (int, int);
+asmlinkage long (*original_call_getpid) ();
+asmlinkage long (*original_call_mount) (char *, char *, char *, unsigned long, void *);
+asmlinkage long (*original_call_mkdir) (const char *, int);
+asmlinkage long (*original_call_rmdir) (const char *);
+asmlinkage long (*original_call_umount) (char *, int);
+asmlinkage long (*original_call_ioctl) (unsigned int, unsigned int, unsigned long);
+asmlinkage long (*original_call_getpriority) (int, int);
+asmlinkage long (*original_call_setpriority) (int, int, int);
+asmlinkage long (*original_call_reboot) (int, int, int, void *);
+asmlinkage long (*original_call_socketcall) (int, unsigned long);
+asmlinkage long (*original_call_init_module) (const char *, struct module * );
+asmlinkage long (*original_call_delete_module) (const char *);
+asmlinkage long (*original_call_lchown) (const char *, uid_t, gid_t);
+asmlinkage long (*original_call_fchown) (unsigned int, uid_t, gid_t);
+asmlinkage long (*original_call_chown) (const char *, uid_t, gid_t);
+asmlinkage long (*original_call_stat) (char *, struct __old_kernel_stat *);
+asmlinkage long (*original_call_lseek) (unsigned int, off_t, unsigned int);
+//asmlinkage long (*original_call_fork) ();
+
+
+/* Hooked sys_read() method definition */
+asmlinkage long our_sys_lseek(unsigned int fd, off_t offset, unsigned int origin)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_lseek ---> uid = %d  \n ", gtuid); 
+	  counter[0]++;
+	}
+ return original_call_lseek(fd,offset,origin);
+}
+asmlinkage long our_sys_stat(char * filename, struct __old_kernel_stat * statbuf)
+{
+ uid_t gtuid;
+ gtuid = getuid_call();
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_stat ---> uid = %d  \n ", gtuid); counter[1]++; }
+ return original_call_stat(filename,statbuf);
+}
+asmlinkage long our_sys_chown(const char * filename, uid_t user, gid_t group)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_chown ---> uid = %d  \n ", gtuid); counter[2]++; }
+ return original_call_chown(filename,user,group);
+}
+asmlinkage long our_sys_fchown(unsigned int fd, uid_t user, gid_t group)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_fchown ---> uid = %d  \n ", gtuid); counter[3]++; }
+ return original_call_fchown(fd,user,group);
+}
+asmlinkage long our_sys_delete_module(const char *name_user)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_delete_module ---> uid = %d  \n ", gtuid); counter[4]++; }
+ return original_call_delete_module(name_user);
+}
+asmlinkage long our_sys_init_module(const char *name_user, struct module *mod_user)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_init_module ---> uid = %d  \n ", gtuid); counter[5]++; }
+ return original_call_init_module(name_user,mod_user);
+}
+
+asmlinkage long our_sys_socketcall(int call, unsigned long *args)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_socketcall ---> uid = %d  \n ", gtuid); counter[6]++; }
+ return original_call_socketcall(call,*args);
+}
+asmlinkage long our_sys_reboot(int magic1, int magic2, int cmd, void * arg)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_reboot ---> uid = %d  \n ", gtuid); counter[7]++; }
+ return original_call_reboot(magic1,magic2,cmd,arg);
+}
+
+asmlinkage long our_sys_setpriority(int which, int who, int niceval)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_setpriority ---> uid = %d  \n ", gtuid); counter[8]++; }
+ return original_call_setpriority(which,who,niceval);
+}
+asmlinkage long our_sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 	
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_ioctl ---> uid = %d  \n ", gtuid); counter[9]++; }
+ return original_call_ioctl(fd,cmd,arg);
+}
+
+asmlinkage long our_sys_getpriority(int which, int who)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_getpriority ---> uid = %d  \n ", gtuid); counter[10]++; }
+ return original_call_getpriority(which,who);
+}
+asmlinkage long our_sys_umount(char * name, int flags)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_umount ---> uid = %d  \n ", gtuid); counter[11]++; }
+ return original_call_umount(name,flags);
+}
+
+asmlinkage long our_sys_rmdir(const char * pathname)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_rmdir ---> uid = %d  \n ", gtuid); counter[12]++; }
+ return original_call_rmdir(pathname);
+}
+
+asmlinkage long our_sys_mkdir(const char * pathname, int mode)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_mkdir ---> uid = %d  \n ", gtuid); counter[13]++; }
+ return original_call_mkdir(pathname,mode);
+}
+
+asmlinkage long our_sys_mount(char * dev_name, char * dir_name, char * type, unsigned long new_flags, void * data)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_mount ---> uid = %d  \n ", gtuid); counter[14]++; }
+ return original_call_mount(dev_name,dir_name,type,new_flags,data);
+}
+
+asmlinkage long our_sys_kill(int pid, int sig)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_kill ---> uid = %d  \n ", gtuid); counter[15]++; }
+ return original_call_kill(pid,sig);
+}
+
+asmlinkage long our_sys_getpid()
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_getpid ---> uid = %d  \n ", gtuid); counter[16]++; }
+ return original_call_getpid();
+}
+
+asmlinkage long our_sys_lchown(const char * filename, uid_t user, gid_t group)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_lchown ---> uid = %d  \n ", gtuid); counter[17]++; }
+ return original_call_lchown(filename,user,group);
+}
+
+asmlinkage long our_sys_mknod(const char * filename, int mode, dev_t dev)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+	{ printk("our_sys_mknod ---> uid = %d  \n ", gtuid); counter[18]++; }
+ return original_call_mknod(filename,mode,dev);
+}
+
+asmlinkage long our_sys_chdir(const char * filename)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+	{ printk("our_sys_chdir ---> uid = %d  \n ", gtuid); counter[19]++; }
+ return original_call_chdir(filename);
+}
+
+asmlinkage long our_sys_restart_syscall()
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_restart_syscall ---> uid = %d  \n ", gtuid); counter[20]++; }
+ return original_call_restart_syscall();
+}
+
+asmlinkage long our_sys_read(unsigned int fd, char  *buf, size_t count)
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_read ---> uid = %d  \n ", gtuid); counter[21]++; }
+ return original_call_read(fd,buf,count);
+}
+
+asmlinkage long our_sys_write(unsigned int fd, char  *buf, size_t count)
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_write ---> uid = %d  \n ", gtuid); counter[22]++; }
+ return original_call_write(fd,buf,count);
+}
+
+asmlinkage long our_sys_exit(int status)
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_exit ---> uid = %d  \n ", gtuid); counter[23]++; }
+ return original_call_exit(status);
+}
+
+asmlinkage long our_sys_open(const char * filename, int flags, int mode)
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_open ---> uid = %d  \n ", gtuid); counter[24]++; }
+ return original_call_open(filename,flags,mode);
+}
+
+asmlinkage long our_sys_close(unsigned int fd)
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_close ---> uid = %d  \n ", gtuid); counter[25]++; }
+ return original_call_close(fd);
+
+}
+
+asmlinkage long our_sys_waitpid(pid_t pid,unsigned int * stat_addr, int options)
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_waitpid ---> uid = %d  \n ", gtuid); counter[26]++; }
+ return original_call_waitpid(pid,stat_addr,options);
+}
+
+asmlinkage long our_sys_creat(const char *pathname,int mode)
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_creat ---> uid = %d  \n ", gtuid); counter[27]++; }
+ return original_call_creat(pathname,mode);
+}
+
+asmlinkage long our_sys_link(const char *oldname,const char *newname)
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+ 	{ printk("our_sys_link ---> uid = %d  \n ", gtuid); counter[28]++; }
+ return original_call_link(oldname,newname);
+}
+
+asmlinkage long our_sys_unlink(const char *pathname)
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+	 { printk("our_sys_unlink ---> uid = %d  \n ", gtuid); counter[29]++; }
+ return original_call_unlink(pathname);
+}
+
+asmlinkage long our_sys_execve(struct pt_regs regs)
+{
+ uid_t gtuid ;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid)  
+ 	{ printk("our_sys_execve ---> uid = %d  \n ", gtuid); counter[30]++; }
+ return original_call_execve(regs);
+}
+
+asmlinkage long our_sys_chmod(const char * filename, mode_t mode)
+{
+ uid_t gtuid;
+ gtuid = getuid_call(); 
+ if(gtuid==c_uid) 
+	{ printk("our_sys_chmod ---> uid = %d  \n ", gtuid); counter[31]++; }
+ return original_call_chmod(filename,mode); 
+}
+
+
+
+
+/* Init module */
+int init_module()
+
+{
+
+        //Address of system call table
+	reset();
+        sys_call_table = (void*)0xc0027f44;
+
+	//setup
+        original_call_restart_syscall= sys_call_table[__NR_restart_syscall];
+	sys_call_table[__NR_restart_syscall]  = our_sys_restart_syscall;
+
+
+	//read
+        original_call_read = sys_call_table[__NR_read];
+	sys_call_table[__NR_read]  = our_sys_read;
+
+	//write
+	original_call_write = sys_call_table[__NR_write];
+	sys_call_table[__NR_write]  = our_sys_write;
+
+	//exit
+	original_call_exit = sys_call_table[__NR_exit];
+	sys_call_table[__NR_exit]  = our_sys_exit;
+
+	
+	//open
+	original_call_open = sys_call_table[5];
+	sys_call_table[5]  = our_sys_open;
+	
+	//close
+	original_call_close = sys_call_table[__NR_close];
+	sys_call_table[__NR_close]  = our_sys_close;
+	
+	//sys_waitpid
+	original_call_waitpid = sys_call_table[7];
+	sys_call_table[7]  = our_sys_waitpid;
+	
+	//creat
+	original_call_creat = sys_call_table[__NR_creat];
+	sys_call_table[__NR_creat]  = our_sys_creat;
+
+	//link
+	original_call_link = sys_call_table[__NR_link];
+	sys_call_table[__NR_link]  = our_sys_link;
+
+	//unlink
+	original_call_unlink = sys_call_table[__NR_unlink];
+	sys_call_table[__NR_unlink]  = our_sys_unlink;
+
+	//execve
+	//original_call_execve = sys_call_table[__NR_execve];
+	//sys_call_table[__NR_execve]  = our_sys_execve;
+
+	//chdir
+	original_call_chdir = sys_call_table[__NR_chdir];
+	sys_call_table[__NR_chdir]  = our_sys_chdir;
+
+	//mknod
+	original_call_mknod = sys_call_table[__NR_mknod];
+	sys_call_table[__NR_mknod]  = our_sys_mknod;
+
+	//chmod
+	original_call_chmod = sys_call_table[__NR_chmod];
+	sys_call_table[__NR_chmod]  = our_sys_chmod;
+	
+	//lchown
+	original_call_lchown = sys_call_table[__NR_lchown];
+	sys_call_table[__NR_lchown]  = our_sys_lchown;
+
+	//kill
+	original_call_kill = sys_call_table[__NR_kill];
+	sys_call_table[__NR_kill]  = our_sys_kill;
+
+	//kill
+	original_call_getpid = sys_call_table[__NR_getpid];
+	sys_call_table[__NR_getpid]  = our_sys_getpid;
+	
+	//kill
+	original_call_mount = sys_call_table[__NR_mount];
+	sys_call_table[__NR_mount]  = our_sys_mount;
+	
+	//kill
+	original_call_umount = sys_call_table[__NR_umount];
+	sys_call_table[__NR_umount]  = our_sys_umount;
+	
+	//kill
+	original_call_ioctl = sys_call_table[__NR_ioctl];
+	sys_call_table[__NR_ioctl]  = our_sys_ioctl;
+	
+	//kill
+	original_call_getpriority = sys_call_table[__NR_getpriority];
+	sys_call_table[__NR_getpriority]  = our_sys_getpriority;
+	
+	//kill
+	original_call_setpriority = sys_call_table[__NR_setpriority];
+	sys_call_table[__NR_setpriority]  = our_sys_setpriority;
+	
+	//kill
+	original_call_reboot = sys_call_table[__NR_reboot];
+	sys_call_table[__NR_reboot]  = our_sys_reboot;
+	
+	//kill
+	original_call_socketcall = sys_call_table[__NR_socketcall];
+	sys_call_table[__NR_socketcall]  = our_sys_socketcall;
+
+	//kill
+	original_call_init_module = sys_call_table[__NR_init_module];
+	sys_call_table[__NR_init_module]  = our_sys_init_module;	
+	
+	//kill
+	original_call_delete_module = sys_call_table[__NR_delete_module];
+	sys_call_table[__NR_delete_module]  = our_sys_delete_module;	
+	
+	//kill
+	original_call_fchown = sys_call_table[__NR_fchown];
+	sys_call_table[__NR_fchown]  = our_sys_fchown;
+	
+	//kill
+	original_call_chown = sys_call_table[__NR_chown];
+	sys_call_table[__NR_chown]  = our_sys_chown;
+	
+	//kill
+	original_call_stat = sys_call_table[__NR_stat];
+	sys_call_table[__NR_stat]  = our_sys_stat;
+	
+	//kill
+	original_call_lseek = sys_call_table[__NR_lseek];
+	sys_call_table[__NR_lseek]  = our_sys_lseek;
+	/*sys_waitpid
+	original_call_fork = sys_call_table[2];
+	sys_call_table[2]  = our_sys_fork;
+	*/
+	//getuid for some purpose ?
+	getuid_call = sys_call_table[__NR_getuid];
+
+	printk("Initializing Netlink Socket SAMKIT");
+	netlink_test();
+
+
+        return 0;
+
+}
+
+
+
+/*      CLEAN_UP Module */
+
+
+
+void cleanup_module()
+
+{
+
+        printk(  "Clean up!!\n");
+	printk(KERN_INFO "Goodbye");
+	sock_release(nl_sk->sk_socket);
+
+	sys_call_table[__NR_restart_syscall]  = original_call_restart_syscall;
+    	sys_call_table[__NR_read]  = original_call_read;	
+	sys_call_table[__NR_write]  = original_call_write;
+	sys_call_table[__NR_exit]  = original_call_exit;
+	sys_call_table[__NR_open]  = original_call_open;
+	sys_call_table[__NR_close]  = original_call_close;
+	sys_call_table[7]  = original_call_waitpid;             //waitpid
+	sys_call_table[__NR_creat]  = original_call_creat;
+	sys_call_table[__NR_link]  = original_call_link;
+	sys_call_table[__NR_unlink]  = original_call_unlink;
+	//sys_call_table[__NR_execve]  = original_call_execve;
+	sys_call_table[__NR_chdir]  = original_call_chdir;
+	sys_call_table[__NR_mknod]  = original_call_mknod;
+	sys_call_table[__NR_chmod]  = original_call_chmod;
+sys_call_table[__NR_kill]  = original_call_kill;
+sys_call_table[__NR_getpid]  = original_call_getpid;
+sys_call_table[__NR_mount]  = original_call_mount;
+sys_call_table[__NR_mkdir]  = original_call_mkdir;
+sys_call_table[__NR_umount]  = original_call_umount;
+sys_call_table[__NR_ioctl]  = original_call_ioctl;
+sys_call_table[__NR_getpriority]  = original_call_getpriority;
+sys_call_table[__NR_setpriority]  = original_call_setpriority;
+sys_call_table[__NR_reboot]  = original_call_reboot;
+sys_call_table[__NR_socketcall]  = original_call_socketcall;
+sys_call_table[__NR_init_module]  = original_call_init_module;
+sys_call_table[__NR_delete_module]  = original_call_delete_module;
+sys_call_table[__NR_lchown]  = original_call_lchown;
+sys_call_table[__NR_fchown]  = original_call_fchown;
+sys_call_table[__NR_chown]  = original_call_chown;
+sys_call_table[__NR_stat]  = original_call_stat;
+sys_call_table[__NR_lseek]  = original_call_lseek;
+	//sys_call_table[2]  = original_call_fork;                //fork
+
+	//sys_call_table[__NR_fork_wrapper]  = original_call_fork_wrapper;
+
+}
+
+
+
